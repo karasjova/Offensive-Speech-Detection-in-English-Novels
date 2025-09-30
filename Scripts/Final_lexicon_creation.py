@@ -11,7 +11,9 @@ from collections import Counter
 nltk.download('punkt')
 nltk.download('vader_lexicon')
 
-#Function for text tokenization
+# ====================
+# Tokenization function
+# ====================
 def tokenize_text(text: str, lower: bool = True, only_alpha: bool = True):
 
     if lower:
@@ -28,12 +30,16 @@ def tokenize_text(text: str, lower: bool = True, only_alpha: bool = True):
 
     return unique_tokens, freq_dict
 
-#Input files
+# ====================
+# Input files and parameters
+# ====================
 salinger_book_path = "/kaggle/input/salinger2/Salinger - The Catcher in the Rye -English.txt"
 hurtlex_path = "/kaggle/input/hurtkex-filtered/hurtlex_filtered.xlsx"
 threshold = 0.6
 
+# ====================
 # Load and tokenize text
+# ====================
 with open(salinger_book_path, "r", encoding="utf-8") as f:
     text = f.read()
 
@@ -41,22 +47,30 @@ tokens, freq_dict = tokenize_text(text)
 
 print(f"Unique tokens count: {len(tokens)}")
 
-#Load Hurtex
+# ====================
+# Load HurtLex
+# ====================
 hurtlex_df = pd.read_excel(hurtlex_path)
 hurtlex_words = set(hurtlex_df["lemma"].dropna().str.lower().unique())
 print(f"Unique Hurtlex words count: {len(hurtlex_words)}")
 hurtlex_list = list(hurtlex_words)
 
-#Model and tools initialization
+# ====================
+# Initialize models and tools
+# ====================
 stemmer = PorterStemmer()
 analyzer = SentimentIntensityAnalyzer()
 model = SentenceTransformer('all-MiniLM-L6-v2')
 
-#Text tokens and hurtlex words vectorization
+# ====================
+# Vectorization
+# ====================
 text_embeddings = model.encode(tokens, convert_to_tensor=True)
 hurtlex_embeddings = model.encode(hurtlex_list, convert_to_tensor=True)
 
-#Search for new words
+# ====================
+# Search for new words
+# ====================
 results = []
 
 for i, token in enumerate(tokens):
@@ -104,22 +118,30 @@ for i, token in enumerate(tokens):
         "level_of_agreement": level_of_agreement,
         "type": token_type
     })
-
+# ====================
+# Save token comparison
+# ====================
 df_results = pd.DataFrame(results)
 df_results.to_csv("tokens_comparison_vader_textblob.csv", index=False, encoding="utf-8")
 
-#Collect all negative tokens by VADER (Extra_forms + New_lemmas)
+# ====================
+# Collect negative tokens by VAder
+# ====================
 neg_tokens_set = set(df_results[df_results["vader_neg"]]["token"].unique())
 print(f"Unique negative tokens count: {len(neg_tokens_set)}")  # должно быть 114
 
-#Merge with HurtLex words
+# ====================
+# Merge with HurtLex words
+# ====================
 all_words_set = neg_tokens_set.union(hurtlex_words)
 print(f"All words count: {len(all_words_set)}") 
 
-#Save all words (HurtLex + negative tokens)
 df_all_words = pd.DataFrame({"word": list(all_words_set)})
 df_all_words.to_csv("all_hurtlex_and_neg_vader_words.csv", index=False, encoding="utf-8")
 
+# ====================
+# Summary table
+# ====================
 summary_table = pd.DataFrame({
     "Method": ["VADER", "TextBlob", "Agreement (both)"],
     "Extra_forms": [
@@ -136,7 +158,9 @@ summary_table = pd.DataFrame({
 summary_table["Total"] = summary_table["Extra_forms"] + summary_table["New_lemmas"]
 print(summary_table)
 
-# Plot diagramm
+# ====================
+# Plot comparison diagram
+# ====================
 labels = ["Extra forms", "New lemmas"]
 vader_counts = [summary_table.loc[0, "Extra_forms"], summary_table.loc[0, "New_lemmas"]]
 tb_counts = [summary_table.loc[1, "Extra_forms"], summary_table.loc[1, "New_lemmas"]]
