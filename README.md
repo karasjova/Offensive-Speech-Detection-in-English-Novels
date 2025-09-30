@@ -21,6 +21,12 @@ The project uses:
 - **Final lexicon**: expanded lexicon of offensive words (`dataset/final_lexicon.csv`)
 - **Annotated dataset**: manually annotated sentences for model fine-tuning (`dataset/new_salinger_labelled.csv`)
 
+## Installation
+
+```bash
+pip install -r requirements.txt
+```
+
 ## Scripts Overview
 
 ## Usage
