@@ -21,6 +21,7 @@ from datasets import Dataset
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
 from scipy.special import softmax
+from sklearn.model_selection import StratifiedKFold
 
 
 device = 0 if torch.cuda.is_available() else -1
@@ -150,7 +151,7 @@ df_matched.to_csv(matched_csv, sep=";", index=False, encoding="utf-8-sig")
 print(f"{matched_csv} saved ({len(df_matched)} sentences matched)")
 
 # ========================
-# Step 6: Fine-tune HateBERT
+# Step 6: Fine-tune PLM
 # ========================
 df_labelled = pd.read_csv(labelled_path, sep=";")
 df_labelled.columns = df_labelled.columns.str.strip()
@@ -159,48 +160,59 @@ df_labelled['label'] = df_labelled['offensive'].map(label_map)
 df_labelled['input_text'] = df_labelled['sentence']
 df_hatebert = df_labelled[['input_text', 'label']]
 
-train_df, test_df = train_test_split(df_hatebert, test_size=0.2, stratify=df_hatebert['label'], random_state=42)
-train_dataset = Dataset.from_pandas(train_df)
-test_dataset = Dataset.from_pandas(test_df)
+model_name = "Hate-speech-CNERG/bert-base-uncased-hatexplain"
 
-model_name = "GroNLP/hateBERT"
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-config = AutoConfig.from_pretrained(model_name)
-config.num_labels = 2
-config.problem_type = "single_label_classification"
-model = AutoModelForSequenceClassification.from_pretrained(model_name, config=config, ignore_mismatched_sizes=True)
+n_splits = 5
+skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
 
-def tokenize(batch):
-    return tokenizer(batch["input_text"], truncation=True, padding=True)
+for fold, (train_idx, val_idx) in enumerate(skf.split(df_hatebert, df_hatebert['label'])):
+    print(f"=== Fold {fold+1}/{n_splits} ===")
+    train_df = df_hatebert.iloc[train_idx].reset_index(drop=True)
+    val_df = df_hatebert.iloc[val_idx].reset_index(drop=True)
 
-train_dataset = train_dataset.map(tokenize, batched=True)
-test_dataset = test_dataset.map(tokenize, batched=True)
-train_dataset = train_dataset.remove_columns(["input_text", "__index_level_0__"])
-test_dataset = test_dataset.remove_columns(["input_text", "__index_level_0__"])
+    train_dataset = Dataset.from_pandas(train_df)
+    val_dataset = Dataset.from_pandas(val_df)
 
-data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
-training_args = TrainingArguments(
-    output_dir=finetuned_model_dir,
-    eval_strategy="epoch",
-    per_device_train_batch_size=16,
-    per_device_eval_batch_size=16,
-    num_train_epochs=5,
-    logging_dir="./logs",
-    logging_steps=10,
-    save_strategy="no",
-    report_to=[]
-)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    config = AutoConfig.from_pretrained(model_name)
+    config.num_labels = 2
+    config.problem_type = "single_label_classification"
+    model = AutoModelForSequenceClassification.from_pretrained(model_name, config=config, ignore_mismatched_sizes=True)
 
-trainer = Trainer(
-    model=model,
-    args=training_args,
-    train_dataset=train_dataset,
-    eval_dataset=test_dataset,
-    tokenizer=tokenizer,
-    data_collator=data_collator
-)
+    def tokenize(batch):
+        return tokenizer(batch["input_text"], truncation=True, padding=True)
 
-trainer.train()
+    train_dataset = train_dataset.map(tokenize, batched=True)
+    val_dataset = val_dataset.map(tokenize, batched=True)
+
+    columns_to_remove = ["input_text", "__index_level_0__"]
+
+    train_dataset = train_dataset.remove_columns([c for c in columns_to_remove if c in train_dataset.column_names])
+    val_dataset = val_dataset.remove_columns([c for c in columns_to_remove if c in val_dataset.column_names])
+
+    data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
+    training_args = TrainingArguments(
+        output_dir=os.path.join(finetuned_model_dir, f"fold_{fold}"),
+        eval_strategy="epoch",  # вместо evaluation_strategy
+        per_device_train_batch_size=16,
+        per_device_eval_batch_size=16,
+        num_train_epochs=3,
+        logging_dir="./logs",
+        logging_steps=10,
+        save_strategy="no",
+        report_to=[]
+    )
+
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_dataset,
+        eval_dataset=val_dataset,
+        tokenizer=tokenizer,
+        data_collator=data_collator
+    )
+
+    trainer.train()
 
 # ========================
 # Step 7: Predictions on matched sentences
