@@ -19,15 +19,26 @@ The project uses:
 - **Original texts**: *The Catcher in the Rye*, *Last Exit to Brooklyn*
 - **HurtLex lexicon**: curated lexicon of offensive words (`dataset/hurtlex_filtered.xlsx`)
 - **Final lexicon**: expanded lexicon of offensive words (`dataset/final_lexicon.csv`)
-- **Labelled sentences**: manually annotated sentences for model fine-tuning (`dataset/new_salinger_labelled.csv`)
+- **Annotated dataset**: manually annotated sentences for model fine-tuning (`dataset/new_salinger_labelled.csv`)
+
+## Scripts Overview
 
 ## Usage
 
 Run all cells in Jupyter Notebook, Kaggle, or Colab.
 
-## Notebooks Overview
+## 1. Final_lexicon_creation
+   
+   The script creates a lexicon based on the initial Hurtlex lexicon, which is further expanded by using cosine similarity with tokens extracted from the processed literary text.
 
+## 2. CM_training
 
+  The script performs training of machine learning models (Random Forest, SVM, Naive Bayes) with 80/20 train-test split and 5-fold cross-validation on annotated dataset.
 
+ ## 3. PLM_training 
 
+  The script performs training of pretrained language models (HateBert and HateXplain) with 80/20 train-test split and 5-fold cross-validation on annotated dataset.
 
+## 4. Offensive_Speech_Detection_Pipeline
+  The script implements the complete pipeline for offensive speech detection, including text preprocessing, lexicon expanding, lexicon-based sentece filtering, and classification using pretrained language models.
+  
